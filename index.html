@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OneDesk Flow 1 Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a fixed 1440×900 console canvas (matching the Figma frames), scaled to fit, with a floating flow controller below it. */
+:root {
+  --page: #f3f3f3;
+  --card: #ffffff;
+  --ink: #181818;
+  --ink-2: #3e3e3c;
+  --muted: #706e6b;
+  --line: #e5e5e5;
+  --line-2: #c9c9c9;
+  --brand: #066afe;
+  --brand-ink: #0250d9;
+  --navy: #032d60;
+  --title: #03234d;
+  --bubble-in: #f3f3f3;
+  --ok: #2e844a;
+  --ok-bg: #e6f6ea;
+  --ok-strong: #c2ecca;
+  --warn-bg: #fcf1d6;
+  --info-bg: #eaf1fe;
+  --scrim: rgba(24, 24, 24, .38);
+  --hint: #ff9a3c;
+  --font: "Salesforce Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: #d9dbe0; color: var(--ink); font-family: var(--font); font-size: 13px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 88px; overflow-x: hidden;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+svg { display: block; flex: none; }
+
+#frame { margin: 0 auto; position: relative; }
+#stage {
+  width: 1440px; height: 900px; transform-origin: top left; position: absolute; top: 0; left: 0;
+  background: var(--page); border-radius: 10px; overflow: hidden; box-shadow: 0 10px 40px rgba(3, 35, 77, .18);
+  display: grid; grid-template-rows: 64px 40px 40px 1fr 40px;
+}
+
+/* Global chrome */
+.gh { background: var(--card); display: flex; align-items: center; padding: 0 16px; gap: 16px; }
+.logo { width: 62px; height: 40px; border-radius: 20px; background: linear-gradient(135deg, #1b96ff, #0176d3); color: #fff; font-weight: 700; display: grid; place-items: center; letter-spacing: .5px; font-size: 13px; }
+.gsearch { margin-left: 318px; width: 482px; height: 32px; border: 1px solid #747474; border-radius: 16px; display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--muted); }
+.gicons { margin-left: auto; display: flex; align-items: center; gap: 18px; color: #3e3e3c; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--navy); color: #fff; display: grid; place-items: center; font-weight: 600; font-size: 12px; }
+.nav { background: var(--card); display: flex; align-items: stretch; }
+.app { display: flex; align-items: center; gap: 12px; padding: 0 16px; font-size: 20px; color: var(--ink); width: 170px; }
+.navtab { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-left: 1px solid var(--line); font-weight: 600; }
+.navtab.home { width: 200px; }
+.navtab.rec { color: var(--brand-ink); font-weight: 600; border-bottom: 3px solid var(--brand-ink); width: 220px; justify-content: space-between; }
+.subtabs { background: var(--card); display: flex; border-bottom: 1px solid var(--line); }
+.subtab { width: 170px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px 0 20px; border: 0; background: none; color: var(--ink-2); font-size: 14px; }
+.subtab span { display: flex; align-items: center; gap: 6px; }
+.subtab.on { background: #e9f1fd; color: var(--brand-ink); }
+.utility { background: var(--card); border-top: 1px solid var(--line); display: flex; align-items: center; gap: 26px; padding: 0 12px; font-size: 14px; color: var(--ink-2); }
+.utility span { display: flex; align-items: center; gap: 8px; }
+
+/* Workspace */
+.ws { display: grid; grid-template-columns: 1040px 360px; gap: 12px; padding: 16px; min-height: 0; }
+.mainside { display: grid; grid-template-rows: auto 1fr; gap: 16px; min-height: 0; }
+.cols { display: grid; grid-template-columns: 360px 660px; gap: 12px; min-height: 0; }
+.col { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; scrollbar-width: none; position: relative; }
+.col::-webkit-scrollbar { display: none; }
+.card { background: var(--card); border-radius: 16px; flex: none; }
+.rh { display: flex; justify-content: space-between; align-items: flex-start; padding: 2px 20px 0 16px; }
+.rh-id { display: flex; gap: 12px; align-items: center; }
+.rh-ic { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+.rh-kind { font-size: 13px; color: var(--ink-2); }
+.rh-num { font-size: 28px; color: var(--title); line-height: 1.1; }
+.rh-fields { display: flex; gap: 0; margin-top: 10px; }
+.rh-fields div { width: 139px; font-size: 12px; color: var(--muted); }
+.rh-fields b { display: block; font-weight: 400; color: var(--ink); font-size: 13px; margin-top: 4px; }
+.rh-fields a { color: var(--brand-ink); text-decoration: none; }
+.btn { height: 32px; border-radius: 16px; padding: 0 16px; border: 1px solid #747474; background: var(--card); color: var(--brand-ink); font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn.brand { background: var(--brand); border-color: var(--brand); color: #fff; }
+.btn.sm { height: 28px; font-size: 12px; padding: 0 14px; }
+.btn.link { border: 0; background: none; padding: 0 6px; }
+.btn[disabled] { opacity: .45; cursor: default; }
+.btn-group { display: inline-flex; }
+.btn-group .btn:first-child { border-radius: 16px 0 0 16px; }
+.btn-group .btn:last-child { border-radius: 0 16px 16px 0; border-left: 0; }
+.verified { background: var(--ok-strong); color: var(--ok); border-radius: 4px; height: 26px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; flex: none; }
+
+.ch { display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px; font-size: 20px; color: var(--title); }
+.ch .grow { flex: 1; }
+.circ { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #747474; display: grid; place-items: center; color: var(--brand-ink); background: none; }
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--line); padding: 0 12px; }
+.tab { padding: 8px 12px 10px; font-size: 14px; color: var(--ink-2); border: 0; background: none; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.tab.on { color: var(--brand-ink); border-bottom-color: var(--brand-ink); }
+.kv { display: grid; grid-template-columns: 147px 1fr; row-gap: 10px; padding: 12px 16px 20px; font-size: 12px; }
+.kv dt { font-weight: 700; color: var(--ink); }
+.kv dd { margin: 0; display: flex; align-items: center; gap: 10px; color: var(--ink); }
+.kv dd .cp { color: var(--brand-ink); }
+.who { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; padding: 14px 16px 4px; }
+.tier { background: #0b5cff; color: #fff; font-size: 10px; border-radius: 3px; padding: 1px 5px; font-weight: 600; }
+.ai-ic { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #9a5cf0, #5a2fd3); color: #fff; display: grid; place-items: center; }
+.ai-row { display: flex; align-items: center; gap: 30px; padding: 4px 20px; font-size: 12px; font-weight: 700; }
+.ai-foot { padding: 16px 20px 18px; font-size: 12px; font-weight: 700; }
+.timer { display: flex; align-items: center; justify-content: center; gap: 10px; height: 56px; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.play { width: 24px; height: 24px; border-radius: 4px; background: #1b96ff; color: #fff; display: grid; place-items: center; }
+
+/* Conversation */
+.convo { padding-bottom: 8px; }
+.chatbox { margin: 0 8px; border: 1px solid var(--line); border-radius: 12px; display: grid; grid-template-rows: 48px 334px 48px; }
+.chat-h { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 14px; }
+.chat-h span { display: flex; align-items: center; gap: 8px; }
+.chat-ic { width: 24px; height: 24px; border-radius: 50%; background: #1b96ff; color: #fff; display: grid; place-items: center; }
+.chat { overflow-y: auto; padding: 4px 20px 8px; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; }
+.msg { display: flex; gap: 8px; max-width: 100%; }
+.msg .av { width: 32px; height: 32px; border-radius: 50%; background: var(--bubble-in); display: grid; place-items: center; font-size: 15px; color: var(--ink-2); flex: none; }
+.msg .body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bub { padding: 8px; border-radius: 8px; font-size: 13px; line-height: 18px; background: var(--bubble-in); }
+.meta { font-size: 10px; color: var(--ink-2); }
+.msg.out { justify-content: flex-end; }
+.msg.out .body { align-items: flex-end; }
+.msg.out .bub { background: var(--navy); color: #fff; }
+.msg.agent .bub { width: 100%; }
+.msg.va .bub { background: #e4ecfb; }
+.msg.new { animation: rise .35s ease-out; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.bookend { text-align: center; font-size: 12px; color: var(--ink-2); padding-bottom: 10px; border-bottom: 1px solid var(--line-2); margin: 0 4px; }
+.bookend.plain { border: 0; padding: 4px 0; }
+.tone { background: var(--warn-bg); text-align: center; font-size: 13px; padding: 5px; border-radius: 4px; margin: 0 16px; }
+.typing { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+.dots { display: inline-flex; gap: 3px; background: var(--bubble-in); padding: 8px 10px; border-radius: 10px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: #9b9b9b; animation: blink 1s infinite; }
+.dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+.composer { display: flex; align-items: center; gap: 8px; padding: 0 16px; }
+.composer input { flex: 1; height: 32px; border: 1px solid #747474; border-radius: 4px; padding: 0 8px; font: inherit; font-size: 13px; color: var(--ink); background: var(--card); }
+.composer input.drafted { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+.sendbtn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #747474; background: var(--card); color: var(--brand-ink); display: grid; place-items: center; }
+
+.search { padding-bottom: 18px; }
+.lbl { font-size: 13px; color: var(--ink); padding: 0 16px 6px; }
+.lbl b { color: #ba0517; font-weight: 400; }
+.combo { margin: 0 16px; display: flex; width: 532px; height: 32px; border: 1px solid #747474; border-radius: 4px; }
+.combo .sel { width: 160px; border-right: 1px solid #747474; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; color: var(--ink-2); }
+.combo input { flex: 1; border: 0; padding: 0 8px; font: inherit; font-size: 13px; background: none; color: var(--ink); min-width: 0; }
+.combo .mag { display: grid; place-items: center; padding: 0 8px; color: var(--ink-2); }
+.row-btns { display: flex; gap: 8px; padding: 10px 16px 0; align-items: center; }
+.results { margin: 16px 16px 0; display: flex; flex-direction: column; gap: 14px; }
+.results h4 { margin: 0 0 6px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+table.dt { width: 100%; border-collapse: collapse; font-size: 12px; }
+.dt th { text-align: left; font-weight: 600; color: var(--ink-2); background: #f3f3f3; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.dt td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.4; }
+.pill { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 600; }
+.pill.ok { background: #acf3e4; color: #056764; }
+.pill.blue { background: #d8e6fe; color: var(--brand-ink); }
+
+/* Case view */
+.compose-row { display: flex; gap: 12px; padding: 12px 16px 16px; }
+.field { flex: 1; height: 32px; border: 1px solid #747474; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; color: var(--muted); }
+.itin-h { display: flex; align-items: center; gap: 12px; padding: 14px 16px 6px; font-size: 20px; color: var(--title); }
+.itin-ic { width: 32px; height: 32px; border-radius: 50%; background: #5867e8; color: #fff; display: grid; place-items: center; }
+.itin-grid { display: grid; grid-template-columns: 80px 150px 124px 1fr; row-gap: 6px; padding: 4px 16px 12px 60px; font-size: 13px; }
+.itin-grid dt { font-weight: 600; }
+.itin-grid dd { margin: 0; }
+.acc { margin: 8px 16px 0; background: #f3f3f3; border-radius: 4px; }
+.acc-h { display: flex; align-items: center; gap: 10px; padding: 10px 12px; font-size: 16px; font-weight: 600; }
+.acc .kv { padding: 0 30px 12px; grid-template-columns: 124px 1fr; row-gap: 6px; }
+.section-h { display: flex; align-items: center; gap: 10px; background: #f3f3f3; border-radius: 4px; margin: 12px 16px 4px; padding: 6px 10px; font-size: 16px; }
+.sel-wide { margin: 0 16px; width: 218px; height: 32px; border: 1px solid #747474; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; }
+
+/* Agent Assist */
+.aa { background: var(--card); border-radius: 16px; display: grid; grid-template-rows: 55px 1fr; min-height: 0; overflow: hidden; }
+.aa-h { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 20px; font-weight: 700; color: var(--ink); box-shadow: 0 2px 4px rgba(0, 0, 0, .06); z-index: 1; }
+.aa-feed { overflow-y: auto; scroll-behavior: smooth; scrollbar-width: thin; }
+.aa-card { padding: 12px; border-bottom: 1px solid var(--line); }
+.aa-card.new { animation: rise .4s ease-out; }
+.aa-title { display: flex; align-items: center; gap: 8px; font-size: 20px; color: var(--ink); padding: 4px 0 12px; }
+.banner { display: flex; align-items: center; gap: 12px; border-radius: 12px; padding: 14px 16px; font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+.banner.ok { background: var(--ok-bg); }
+.banner.warn { background: var(--warn-bg); }
+.aa-kv { display: grid; grid-template-columns: 147px 1fr; row-gap: 10px; font-size: 13px; line-height: 18px; }
+.aa-kv dt { font-weight: 700; }
+.aa-kv dd { margin: 0; display: flex; gap: 8px; align-items: center; }
+.aa-kv dd.open { color: var(--ok); }
+.aa-divider { height: 1px; background: var(--line); margin: 14px 0; }
+.aa-link { display: block; text-align: right; color: var(--brand-ink); font-size: 12px; font-weight: 600; padding: 12px 16px 0; background: none; border: 0; margin-left: auto; }
+.action { background: var(--info-bg); border-radius: 12px; padding: 16px 16px 16px 50px; margin-top: 16px; position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.action > svg:first-child { position: absolute; left: 16px; top: 15px; }
+.action strong { font-size: 15px; font-weight: 600; }
+.action p { margin: 0; font-size: 13px; line-height: 18px; color: var(--ink-2); }
+.pillbtn { height: 36px; border-radius: 18px; padding: 0 16px; border: 0; background: var(--brand-ink); color: #fff; font-weight: 600; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+.pillbtn[disabled] { background: #9fbdf5; cursor: default; }
+.stamp { font-size: 12px; color: var(--ink-2); padding: 16px 0 8px; }
+.fb { display: flex; gap: 12px; }
+.fb button { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--card); color: var(--brand-ink); display: grid; place-items: center; }
+.fb button.on { background: var(--brand-ink); color: #fff; border-color: var(--brand-ink); }
+.iconbtn { border: 0; background: none; color: var(--brand-ink); padding: 2px; display: grid; place-items: center; border-radius: 4px; }
+.closed-msg { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; padding: 10px 20px; }
+.survey { text-align: center; padding: 22px 12px 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.survey h3 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+.survey button { width: 164px; height: 48px; border-radius: 24px; border: 1px solid var(--line-2); background: var(--card); color: var(--brand-ink); font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .45); border-top-color: #fff; animation: spin .8s linear infinite; }
+.spin.dark { border-color: rgba(2, 80, 217, .25); border-top-color: var(--brand-ink); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Overlays */
+.scrim { position: absolute; inset: 0; background: var(--scrim); display: grid; place-items: center; z-index: 20; animation: fade .2s ease-out; }
+@keyframes fade { from { opacity: 0; } }
+.confirm { width: 280px; background: var(--card); border-radius: 16px; padding: 24px 24px 20px; box-shadow: 0 8px 30px rgba(0, 0, 0, .2); }
+.confirm h3 { margin: 0 0 8px; font-size: 19px; font-weight: 500; line-height: 1.25; }
+.confirm p { margin: 0 0 18px; font-size: 13px; line-height: 18px; }
+.confirm .acts { display: flex; justify-content: space-between; align-items: center; }
+.detail { width: 844px; max-height: 720px; overflow-y: auto; background: var(--card); border-radius: 16px; padding: 24px 28px; position: relative; box-shadow: 0 8px 30px rgba(0, 0, 0, .2); }
+.detail h3 { margin: 6px 0 18px; font-size: 19px; font-weight: 500; }
+.detail .row { display: grid; grid-template-columns: 205px 1fr; padding: 6px 0; font-size: 13px; line-height: 18px; }
+.detail .row b { font-weight: 700; }
+.detail .money { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.detail .money.big { font-size: 19px; font-weight: 500; padding: 14px 0 8px; }
+.detail .money.big b { font-size: 18px; }
+.detail hr { border: 0; border-top: 1px solid var(--line-2); margin: 12px 0; }
+.xbtn { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--brand-ink); background: var(--card); color: var(--brand-ink); display: grid; place-items: center; }
+.toast { position: absolute; left: 50%; top: 158px; transform: translateX(-50%); background: var(--navy); color: #fff; border-radius: 8px; padding: 10px 16px; font-size: 13px; display: flex; gap: 8px; align-items: center; z-index: 30; animation: rise .25s ease-out; box-shadow: 0 6px 20px rgba(0, 0, 0, .2); }
+
+/* Guided hint */
+.hint { position: relative; z-index: 2; box-shadow: 0 0 0 3px var(--hint), 0 0 0 7px rgba(255, 154, 60, .35) !important; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 3px var(--hint), 0 0 0 11px rgba(255, 154, 60, .12) !important; } }
+body.nohints .hint { box-shadow: none !important; animation: none; }
+
+/* Flow controller */
+#ctl {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  background: #1d2433; color: #f4f6fb; border-radius: 14px; padding: 8px 8px 8px 16px; display: flex; align-items: center; gap: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .3); z-index: 50; max-width: calc(100vw - 32px); font-size: 13px;
+}
+#ctl .ttl { display: flex; flex-direction: column; min-width: 0; }
+#ctl .ttl small { color: #9aa6bf; font-size: 11px; letter-spacing: .4px; text-transform: uppercase; white-space: nowrap; }
+#ctl .ttl span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+#ctl .prog { font-variant-numeric: tabular-nums; color: #9aa6bf; white-space: nowrap; }
+#ctl .cbtn { height: 32px; border-radius: 8px; border: 1px solid #3a4560; background: #283147; color: #f4f6fb; padding: 0 12px; white-space: nowrap; }
+#ctl .cbtn.pri { background: var(--brand); border-color: var(--brand); }
+#ctl .cbtn[disabled] { opacity: .4; cursor: default; }
+#ctl label { display: flex; align-items: center; gap: 6px; color: #c4cbe0; white-space: nowrap; }
+@media (max-width: 760px) { #ctl .ttl, #ctl label { display: none; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<div id="frame"><div id="stage"></div></div>
+
+<div id="ctl" role="toolbar" aria-label="Flow controls">
+  <div class="ttl"><small>Flow 1 · Cancel with penalty</small><span id="ctl-step"></span></div>
+  <span class="prog" id="ctl-prog"></span>
+  <button class="cbtn" id="ctl-back" type="button">← Back</button>
+  <button class="cbtn pri" id="ctl-next" type="button">Next →</button>
+  <button class="cbtn" id="ctl-restart" type="button">Restart</button>
+  <label><input type="checkbox" id="ctl-hints" checked> Hints</label>
+</div>
+
+<script>
+(() => {
+  // ---------- icons ----------
+  const P = {
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+    chat: '<path d="M4 5h16v11H9l-5 4z"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+    copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+    up: '<path d="M7 10v10H4V10zM7 10l4-7c1.5 0 2.5 1 2 3l-1 4h6a2 2 0 0 1 2 2.4l-1.3 6A2 2 0 0 1 16.7 20H7"/>',
+    doc: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>',
+    building: '<path d="M4 21V5h10v16M14 9h6v12M2 21h20M7 8h2M7 12h2M7 16h2M17 13h1M17 17h1"/>',
+    listx: '<path d="M4 6h12M4 11h9M4 16h6M15 15l5 5M20 15l-5 5"/>',
+    case: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4h6v3"/>',
+    phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+    alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/>',
+    sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/>',
+    chev: '<path d="m6 9 6 6 6-6"/>',
+    chevr: '<path d="m9 6 6 6-6 6"/>',
+    x: '<path d="M6 6l12 12M18 6 6 18"/>',
+    bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20h4"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+    help: '<path d="M9 9a3 3 0 1 1 4 2.8c-.7.3-1 .9-1 1.7V15M12 18.5v.5"/>',
+    plus: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+    star: '<path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.4L12 16l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6z"/>',
+    grid: '<circle cx="5" cy="5" r="1.4"/><circle cx="12" cy="5" r="1.4"/><circle cx="19" cy="5" r="1.4"/><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/><circle cx="5" cy="19" r="1.4"/><circle cx="12" cy="19" r="1.4"/><circle cx="19" cy="19" r="1.4"/>',
+    refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
+    lines: '<path d="M7 8h10M9 12h6M11 16h2"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    anchor: '<circle cx="12" cy="5" r="2"/><path d="M12 7v14M5 13a7 7 0 0 0 14 0M8 11h8"/>',
+    sad: '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8.5 16a4.5 4.5 0 0 1 7 0"/>',
+    meh: '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M9 15h6"/>',
+    happy: '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8.5 14a4.5 4.5 0 0 0 7 0"/>'
+  };
+  const ic = (n, s = 16, extra = '') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ${extra}>${P[n]}</svg>`;
+  const down = (s = 16) => ic('up', s, 'style="transform:rotate(180deg)"');
+  const checkDot = (s = 18, bg = '#2e844a') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="${bg}"/><path d="m7 12.5 3.2 3L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const sendIc = '<svg width="16" height="16" viewBox="0 0 24 24"><path d="M3 4.5 21 12 3 19.5l2.5-7.5z" fill="currentColor"/></svg>';
+  const playIc = '<svg width="12" height="12" viewBox="0 0 24 24"><path d="M7 4v16l13-8z" fill="currentColor"/></svg>';
+
+  // ---------- script ----------
+  const MSG = {
+    sorry: 'I’m really sorry that happened. Are you calling about itinerary 234567, going to the Garden State Inn in New Jersey?',
+    thanks: 'Thank you',
+    nonref: 'This booking is non-refundable. Cancelling it will not return the $244.74 already paid. Would you like to proceed with the cancellation?',
+    ofcourse: 'Of course. I can reach out to the property and request a refund for you based on the circumstances. Give me just a moment.',
+    waited: 'Thank you for waiting. I did speak with the property, but they were not able to approve a refund exception. At this point, I can still cancel the reservation for you, but the cancellation fee of $244.74 would remain. Would you like me to proceed?',
+    pleasure: 'My pleasure. Please give me a moment to cancel this reservation.',
+    canceled: 'Your booking has been canceled for itinerary 234567 and the confirmation email will be sent to heatmes3395@gmail.com.',
+    welcome: 'You’re welcome. Is there anything else I can assist you with?'
+  };
+
+  // Each step is a screen state. `auto` steps advance on a timer; others wait for the hinted control.
+  const STEPS = [
+    { key: 'start', auto: 1600, label: 'Agent reads the handoff summary', typing: true },
+    { key: 'f1', label: 'Reply to the traveler', target: 'send', draft: MSG.sorry, time: '6:08pm' },
+    { key: 'e1', auto: 1600, label: 'Waiting for the traveler', typing: true },
+    { key: 'f2', label: 'Thank the traveler', target: 'send', draft: MSG.thanks },
+    { key: 'e2', label: 'Search for the itinerary', target: 'search' },
+    { key: 'results', label: 'Create a case for the itinerary', target: 'create-case' },
+    { key: 'case', label: 'Copy the cancellation summary', target: 'copy-preview', tab: 'case' },
+    { key: 'drafted', label: 'Send the summary to the traveler', target: 'send', tab: 'contact' },
+    { key: 'e3', auto: 1700, label: 'Waiting for the traveler', typing: true },
+    { key: 'f3', label: 'Reply to the refund request', target: 'send', draft: MSG.ofcourse },
+    { key: 'e4', label: 'Call the property', target: 'call' },
+    { key: 'called', label: 'Share the property’s answer', target: 'send', draft: MSG.waited },
+    { key: 'e5', auto: 1700, label: 'Waiting for the traveler', typing: true },
+    { key: 'f4', label: 'Confirm you’ll cancel', target: 'send', draft: MSG.pleasure },
+    { key: 'e6', label: 'Cancel with one click', target: 'one-click' },
+    { key: 'confirm', label: 'Confirm the cancellation', target: 'proceed' },
+    { key: 'cancelling', auto: 1500, label: 'Cancelling the booking' },
+    { key: 'canceled', label: 'Copy the confirmation summary', target: 'copy-canceled' },
+    { key: 'drafted2', label: 'Send the confirmation', target: 'send' },
+    { key: 'e7', auto: 1600, label: 'Waiting for the traveler', typing: true },
+    { key: 'f5', label: 'Offer more help', target: 'send', draft: MSG.welcome },
+    { key: 'e8', auto: 1700, label: 'Waiting for the traveler', typing: true },
+    { key: 'f6', label: 'Close the case', target: 'close-case' },
+    { key: 'submitting', auto: 1700, label: 'Submitting disposition' },
+    { key: 'closed', label: 'Rate Agent Assist', target: 'rate' },
+    { key: 'done', label: 'Flow complete' }
+  ];
+  const at = k => STEPS.findIndex(s => s.key === k);
+
+  // Chat transcript: each message appears once the flow reaches step `from`.
+  // `sentAt` marks agent messages sent from the composer (their text can be edited by the viewer).
+  const TRANSCRIPT = [
+    { from: 0, who: 'va', text: 'Your estimated wait time: Up to 2 minutes. Would you like to continue?', meta: 'Virtual Agent • 6:05pm' },
+    { from: 0, who: 'out', text: 'Continue', meta: 'Farrah • 6:05pm' },
+    { from: 0, kind: 'bookend', html: 'Chat started by <b>Emmanuel</b> • 6:07PM' },
+    { from: 0, kind: 'tone' },
+    { from: 0, who: 'agent', text: 'Hello Farrah, my name is Emmanuel T.! Thank you for your chat today. I can see you are a OneKey Blue member — thank you for your loyalty.', meta: 'Emmanuel • 6:07pm' },
+    { from: 0, who: 'agent', text: 'Let me read through your chat with our virtual agent so I can catch up, and you won’t have to explain everything again. Please give me a moment, and I’ll be right with you.', meta: 'Emmanuel • 6:07pm' },
+    { from: at('f1'), who: 'out', text: 'Hi, the concert I was going to just got canceled, so I need to cancel my hotel booking.', meta: 'Farrah • 6:08pm' },
+    { from: at('e1'), sentAt: at('f1'), who: 'agent', meta: 'Emmanuel • 6:08pm' },
+    { from: at('f2'), who: 'out', text: 'Yes.', meta: 'Farrah • 6:09pm' },
+    { from: at('e2'), sentAt: at('f2'), who: 'agent', meta: 'Emmanuel • 6:09pm' },
+    { from: at('e3'), sentAt: at('drafted'), who: 'agent', meta: 'Emmanuel • 6:10pm' },
+    { from: at('f3'), who: 'out', text: 'can we see if I can get a refund?', meta: 'Farrah • 6:10pm' },
+    { from: at('e4'), sentAt: at('f3'), who: 'agent', meta: 'Emmanuel • 6:10pm' },
+    { from: at('e5'), sentAt: at('called'), who: 'agent', meta: 'Emmanuel • 6:12pm' },
+    { from: at('f4'), who: 'out', text: 'yeah okay thanks for trying', meta: 'Farrah • 6:13pm' },
+    { from: at('e6'), sentAt: at('f4'), who: 'agent', meta: 'Emmanuel • 6:13pm' },
+    { from: at('e7'), sentAt: at('drafted2'), who: 'agent', meta: 'Emmanuel • 6:13pm' },
+    { from: at('f5'), who: 'out', text: 'thanks', meta: 'Farrah • 6:13pm' },
+    { from: at('e8'), sentAt: at('f5'), who: 'agent', meta: 'Emmanuel • 6:14pm' },
+    { from: at('f6'), who: 'out', text: 'nope appreciate your help', meta: 'Farrah • 6:14pm' },
+    { from: at('f6'), kind: 'bookend', plain: true, html: 'Farrah has left the conversation • 6:14 PM PST' }
+  ];
+  const DEFAULT_SENT = { [at('f1')]: MSG.sorry, [at('f2')]: MSG.thanks, [at('drafted')]: MSG.nonref, [at('f3')]: MSG.ofcourse, [at('called')]: MSG.waited, [at('f4')]: MSG.pleasure, [at('drafted2')]: MSG.canceled, [at('f5')]: MSG.welcome };
+
+  // ---------- state ----------
+  const S = { step: 0, tab: 'contact', draft: '', sent: {}, query: '', modal: null, toast: null, rating: null, lastStep: -1 };
+  let timer = null, toastTimer = null;
+  const stage = document.getElementById('stage');
+
+  function enter(i, { fromBack = false } = {}) {
+    clearTimeout(timer);
+    const prev = S.step;
+    S.step = Math.max(0, Math.min(STEPS.length - 1, i));
+    const st = STEPS[S.step];
+    S.modal = st.key === 'confirm' ? 'confirm' : null;
+    if (st.tab) S.tab = st.tab;
+    else if (S.step < at('case')) S.tab = 'contact';
+    else if (st.target === 'send') S.tab = 'contact';
+    // composer draft
+    if (st.target === 'send') S.draft = st.draft ?? (st.key === 'drafted' ? MSG.nonref : st.key === 'drafted2' ? MSG.canceled : '');
+    else S.draft = '';
+    S.query = S.step >= at('e2') ? '234567' : '';
+    if (S.step < at('closed')) S.rating = null;
+    if (st.key === 'called' && !fromBack) showToast('Calling Garden State Inn · +1 123-1234-1234');
+    S.lastStep = fromBack ? S.step : prev;
+    render();
+    if (st.auto) timer = setTimeout(() => enter(S.step + 1), st.auto);
+  }
+  function back() {
+    let i = S.step - 1;
+    while (i > 0 && STEPS[i].auto) i--;
+    enter(i, { fromBack: true });
+  }
+  function next() { act(STEPS[S.step].target || 'next'); }
+
+  function act(name) {
+    const st = STEPS[S.step];
+    if (name === 'see-detail') { S.modal = 'detail'; return render(); }
+    if (name === 'close-modal') { S.modal = st.key === 'confirm' ? null : null; if (st.key === 'confirm') return enter(at('e6'), { fromBack: true }); return render(); }
+    if (name === 'tab-contact' || name === 'tab-case') { S.tab = name.slice(4); return render(); }
+    if (name === 'copy-detail') return;
+    if (name.startsWith('rate:')) { if (st.key === 'closed') { S.rating = name.slice(5); enter(S.step + 1); } return; }
+    if (st.key === 'done' && name === 'next') return;
+    if (st.auto && name === 'next') return enter(S.step + 1);
+    if (name === 'next' || name === st.target || (st.target === 'rate' && name === 'next')) {
+      if (st.target === 'send') S.sent[S.step] = S.draft.trim() || DEFAULT_SENT[S.step];
+      if (st.target === 'rate' && name === 'next') S.rating = 'helpful';
+      if (st.target === 'copy-preview' || st.target === 'copy-canceled') {
+        const text = st.target === 'copy-preview' ? MSG.nonref : MSG.canceled;
+        try { navigator.clipboard?.writeText(text).catch(() => {}); } catch (e) {}
+        showToast('Summary copied and added to the chat composer');
+      }
+      return enter(S.step + 1);
+    }
+    nudge();
+  }
+  function nudge() {
+    const el = stage.querySelector('.hint');
+    if (!el) return;
+    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  function showToast(text) {
+    clearTimeout(toastTimer);
+    S.toast = text;
+    toastTimer = setTimeout(() => { S.toast = null; const t = stage.querySelector('.toast'); if (t) t.remove(); }, 2400);
+  }
+
+  // ---------- render helpers ----------
+  const has = k => S.step >= at(k);
+  const H = t => (S.step < STEPS.length && STEPS[S.step].target === t) ? ' hint' : '';
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const isNew = from => from === S.step && S.lastStep < S.step ? ' new' : '';
+
+  function chrome() {
+    return `
+      <header class="gh">
+        <div class="logo">OD</div>
+        <div class="gsearch">${ic('search')}<span>Search...</span></div>
+        <div class="gicons">${ic('star', 22)}${ic('plus', 22)}${ic('help', 22)}${ic('gear', 22)}${ic('bell', 22)}<div class="avatar">EM</div></div>
+      </header>
+      <nav class="nav">
+        <div class="app">${ic('grid', 20)}OneDesk</div>
+        <div class="navtab home">Home</div>
+        <div class="navtab">${ic('chev')}</div>
+        <div class="navtab rec"><span style="display:flex;gap:6px;align-items:center">${ic('chat', 14)}1234123534</span><span style="display:flex;gap:6px">${ic('chev', 14)}${ic('x', 14)}</span></div>
+      </nav>
+      <div class="subtabs">
+        <button class="subtab${S.tab === 'contact' ? ' on' : ''}" data-act="tab-contact" type="button"><span>${ic('chat', 14)}Contact</span>${ic('x', 14)}</button>
+        ${has('case') ? `<button class="subtab${S.tab === 'case' ? ' on' : ''}" data-act="tab-case" type="button"><span>${ic('case', 14)}Case</span>${ic('x', 14)}</button>` : ''}
+      </div>`;
+  }
+
+  function travelerCard() {
+    return `
+      <section class="card">
+        <div class="ch">${ic('user', 22)}<span class="grow">Traveler details</span><button class="circ" type="button" aria-label="More">${ic('chev')}</button></div>
+        <div class="tabs"><button class="tab on" type="button">Details</button><button class="tab" type="button">Cases</button></div>
+        <div class="who">Farrah Giloh <span class="tier">Blue</span></div>
+        <dl class="kv">
+          <dt>Email:</dt><dd>heatmes3395@gmail.com <span class="cp">${ic('copy', 14)}</span></dd>
+          <dt>Phone number</dt><dd>+1-917-947-2719 <span class="cp">${ic('copy', 14)}</span></dd>
+          <dt>Trip elements:</dt><dd>1</dd>
+          <dt>Account number:</dt><dd>04826385</dd>
+          <dt>Primary Brand/POS</dt><dd>Expedia United States</dd>
+        </dl>
+      </section>`;
+  }
+
+  function chatMessages() {
+    const out = [];
+    for (const m of TRANSCRIPT) {
+      if (m.from > S.step) continue;
+      const nw = isNew(m.from);
+      if (m.kind === 'bookend') { out.push(`<div class="bookend${m.plain ? ' plain' : ''}${nw}">${m.html}</div>`); continue; }
+      if (m.kind === 'tone') { out.push(`<div class="tone"><b>Tone:</b> Neutral</div>`); continue; }
+      const text = m.text ?? (S.sent[m.sentAt] || DEFAULT_SENT[m.sentAt]);
+      if (m.who === 'out') out.push(`<div class="msg out${nw}"><div class="body"><div class="bub">${esc(text)}</div><div class="meta">${m.meta}</div></div></div>`);
+      else out.push(`<div class="msg ${m.who}${nw}"><div class="av">${m.who === 'va' ? 'VA' : 'ET'}</div><div class="body" style="flex:1"><div class="bub">${esc(text)}</div><div class="meta">${m.meta}</div></div></div>`);
+    }
+    if (STEPS[S.step].typing && S.step !== 0) out.push(`<div class="typing"><span class="dots"><i></i><i></i><i></i></span>Farrah is typing…</div>`);
+    return out.join('');
+  }
+
+  function contactView() {
+    const ended = has('f6');
+    return `
+      <div class="mainside">
+        <div class="rh">
+          <div>
+            <div class="rh-id"><div class="rh-ic" style="background:#ff5d2d">${ic('chat', 18)}</div><div><div class="rh-kind">Chat</div><div class="rh-num">MS-12362345</div></div></div>
+            <div class="rh-fields"><div>Status<b>New</b></div><div>Start time<b>06:07PM</b></div><div>Origin<b>Inbound initi…</b></div><div>Language<b>English</b></div><div>Owner<b>N/A</b></div></div>
+          </div>
+          <button class="btn" type="button">Log No-Reason Case</button>
+        </div>
+        <div class="cols">
+          <div class="col">
+            <div class="verified">${checkDot(14)} Traveler has been verified</div>
+            ${travelerCard()}
+            <section class="card">
+              <div class="ch"><span class="ai-ic">${ic('sparkle', 14)}</span>AI Agent Suppport</div>
+              <div class="ai-row">AI Summary <button class="btn" type="button">Generate summary</button></div>
+              <div class="ai-foot">Expedia - Expedia united states</div>
+            </section>
+            <section class="card timer"><span class="play">${playIc}</span><span id="clock">${clock()}</span></section>
+          </div>
+          <div class="col">
+            <section class="card convo">
+              <div class="tabs" style="padding-top:8px"><button class="tab on" type="button">Conversation</button><button class="tab" type="button">Message Details</button><button class="tab" type="button">Language IO Translation</button></div>
+              <div style="height:12px"></div>
+              <div class="chatbox">
+                <div class="chat-h"><span><span class="chat-ic">${ic('chat', 13)}</span>Conversation</span><span class="btn-group"><button class="btn" type="button">End Chat</button><button class="btn" type="button" aria-label="More">${ic('chev')}</button></span></div>
+                <div class="chat" id="chat">${chatMessages()}</div>
+                <form class="composer" id="composer">
+                  <input id="draft" class="${S.draft ? 'drafted' : ''}" placeholder="${ended ? 'The traveler has left the conversation' : 'Type a message'}" value="${esc(S.draft)}" autocomplete="off" ${ended ? 'disabled' : ''}>
+                  <button class="sendbtn${H('send')}" type="submit" data-act="send" aria-label="Send">${sendIc}</button>
+                </form>
+              </div>
+            </section>
+            <section class="card search">
+              <div class="ch"><span class="itin-ic" style="width:26px;height:26px">${ic('building', 14)}</span>Search Itinerary or Traveler</div>
+              <div class="lbl"><b>*</b> Search by</div>
+              <div class="combo"><div class="sel">Identification refe… ${ic('chev', 14)}</div><input id="q" placeholder="Enter" value="${esc(S.query)}" autocomplete="off"><span class="mag">${ic('search')}</span></div>
+              <div class="row-btns"><button class="btn" type="button">Clear all</button><button class="btn brand${H('search')}" type="button" data-act="search">Search</button></div>
+              ${has('results') ? results() : ''}
+            </section>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function results() {
+    return `
+      <div class="results${isNew(at('results'))}">
+        <div><h4>Traveler</h4>
+          <table class="dt"><thead><tr><th>Traveler</th><th>Brand</th><th></th></tr></thead>
+          <tbody><tr><td><b>Farah Giloh</b><br>Phone: 917-123-3456<br>Email: heatmes89@gmail.com<br>Expedia UserID: 603837183</td><td>Expedia US</td><td style="text-align:right"><button class="btn sm" type="button">Create case for account</button></td></tr></tbody></table>
+        </div>
+        <div><h4>Itineraries</h4>
+          <table class="dt"><thead><tr><th>Itinerary</th><th>Travel dates</th><th>Status</th><th>Brand</th><th>Products</th><th></th></tr></thead>
+          <tbody><tr><td>234567</td><td>6 April 2026 – 8 April 2026</td><td><span class="pill blue">Upcoming</span></td><td>Expedia US</td><td>Garden State Hotel<br>Room 1: Deluxe King</td><td style="text-align:right"><button class="btn sm brand${H('create-case')}" type="button" data-act="create-case">Create case for itinerary</button></td></tr></tbody></table>
+        </div>
+      </div>`;
+  }
+
+  function caseView() {
+    return `
+      <div class="mainside">
+        <div class="rh">
+          <div>
+            <div class="rh-id"><div class="rh-ic" style="background:#f0457a">${ic('case', 16)}</div><div><div class="rh-kind">Case</div><div class="rh-num">233204308</div></div></div>
+            <div class="rh-fields"><div>Record Type…<b><a href="#case">Traveler_Re…</a></b></div><div>Status<b>${has('closed') ? 'Closed' : 'New'}</b></div><div>Itinerary<b><a href="#case">234567</a></b></div><div>Itinerary Pro…<b>Hotel</b></div><div>Type<b>N/A</b></div><div>Primary Cate…<b>N/A</b></div></div>
+          </div>
+          <span class="btn-group"><button class="btn" type="button">New Case</button><button class="btn" type="button">Refresh Tab</button></span>
+        </div>
+        <div class="cols">
+          <div class="col">
+            ${travelerCard()}
+            <section class="card" style="padding-bottom:14px">
+              <div class="ch"><span class="ai-ic" style="background:#7526e3">${ic('mail', 13)}</span><span class="grow">Communications</span><button class="circ" type="button" aria-label="More">${ic('chev')}</button></div>
+              <div style="display:flex;gap:10px;align-items:center;padding-right:16px"><div class="sel-wide">Most recent activity ${ic('chev', 14)}</div><button class="circ" type="button" aria-label="Filter">${ic('lines')}</button><button class="circ" type="button" aria-label="Refresh">${ic('refresh', 14)}</button></div>
+              <div class="tabs" style="margin-top:10px"><button class="tab on" type="button">All updates</button><button class="tab" type="button">Emails</button><button class="tab" type="button">Call Logs</button><button class="tab" type="button">Text Posts</button></div>
+              <div class="section-h">${ic('chev')}Case created</div>
+              <div style="padding:6px 28px 4px;font-size:13px"><b>Emmanuel Martin</b><br>April 1, 2026 at 7:28PM</div>
+              <dl class="kv" style="padding-left:28px">
+                <dt>Case number:</dt><dd>233204308</dd><dt>Record type name:</dt><dd>Traveler_Request</dd><dt>Status:</dt><dd>${has('closed') ? 'Closed' : 'New'}</dd><dt>Itinerary number:</dt><dd>234567</dd><dt>Type:</dt><dd></dd><dt>Primary category:</dt><dd></dd>
+              </dl>
+            </section>
+          </div>
+          <div class="col">
+            <section class="card">
+              <div class="tabs" style="padding-top:8px"><button class="tab on" type="button">Send Email</button><button class="tab" type="button">Case Wrap-up</button></div>
+              <div class="compose-row"><div class="field">Write an email...</div><button class="btn brand" type="button">Compose</button></div>
+            </section>
+            <section class="card" style="padding-bottom:16px">
+              <div class="tabs" style="padding-top:8px"><button class="tab on" type="button">Post-Case Comment</button><button class="tab" type="button">Case update</button></div>
+              <div class="lbl" style="padding-top:14px">Internal comments</div>
+              <div style="padding:0 16px"><div class="field">Generate AI Summary or write your own comments</div></div>
+              <div class="row-btns"><button class="btn brand" type="button">${ic('sparkle', 14)}Generate Summary</button><button class="btn brand" type="button">Post Comment</button><button class="btn link" type="button">Clear</button></div>
+            </section>
+            <section class="card" style="padding-bottom:16px">
+              <div class="tabs" style="padding-top:8px"><button class="tab on" type="button">Itinerary</button><button class="tab" type="button">Activity</button><button class="tab" type="button">Details</button><button class="tab" type="button">Language I/O Translation</button></div>
+              <div class="itin-h"><span class="itin-ic">${ic('building', 16)}</span><span style="flex:1">New Jersey</span><span class="pill ${has('canceled') ? 'blue' : 'ok'}">${has('canceled') ? 'Canceled' : 'Upcoming'}</span></div>
+              <dl class="itin-grid">
+                <dt>Itinerary #:</dt><dd>234567</dd><dt>Booking Date</dt><dd>24 Feb 2026</dd>
+                <dt>Start:</dt><dd>6 April 2026</dd><dt>Brand and POS</dt><dd>Expedia United States</dd>
+                <dt>End</dt><dd>8 April 2026</dd><dt></dt><dd></dd>
+              </dl>
+              <div class="row-btns" style="padding-left:60px"><button class="btn" type="button">Inspect Itinerary</button><button class="btn" type="button">Refresh Itinerary</button><button class="btn" type="button">Resend Itinerary</button></div>
+              <div class="acc" style="margin-top:14px"><div class="acc-h">${ic('chevr')}Garden State Hotel</div>
+                <dl class="kv"><dt>Payment type</dt><dd>Pay Now</dd><dt>Hotel ID</dt><dd>12058</dd><dt>Inventory Type:</dt><dd>Local inventory - Expedia collect</dd></dl></div>
+              <div class="acc"><div class="acc-h">${ic('chevr')}Price details</div></div>
+              <div class="acc"><div class="acc-h">${ic('chevr')}Itinerary History</div></div>
+              <div class="acc"><div class="acc-h">${ic('chevr')}Service Request History</div></div>
+            </section>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function stamp(t) { return `<div class="stamp">Apr 4, 2026 at ${t}</div><div class="fb"><button type="button" aria-label="Helpful">${ic('up')}</button><button type="button" aria-label="Not helpful">${down()}</button></div>`; }
+
+  function agentAssist() {
+    const cards = [];
+    cards.push({ from: 0, html: `
+      <div class="aa-title">${ic('chat', 22)}Handoff summary</div>
+      <div class="banner ok">${checkDot(22, '#181818')}Traveler has been verified</div>
+      <dl class="aa-kv"><dt>Itinerary:</dt><dd>234567</dd><dt>Summary:</dt><dd>Traveler needs support to cancel a hotel reservation due to changed travel plans.</dd></dl>
+      ${stamp('6:07 PM')}` });
+    if (has('case')) cards.push({ from: at('case'), html: `
+      <div class="aa-title">${ic('doc', 22)}Cancellation preview</div>
+      <div class="banner warn"><svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#181818"/><path d="M12 6.5v7M12 17v.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>Cancellation will incur a fee</div>
+      <dl class="aa-kv"><dt>Property:</dt><dd>Garden State Inn</dd><dt>Dates:</dt><dd>April 6 – 8, 2026</dd><dt>Policy in effect</dt><dd>Non-refundable</dd></dl>
+      <div class="aa-divider"></div>
+      <dl class="aa-kv"><dt>Refund amount</dt><dd>$0.00</dd><dt>Penalty amount</dt><dd>$244.74</dd></dl>
+      <button class="aa-link" type="button" data-act="see-detail">See more detail</button>
+      <div class="action">${ic('alert', 20)}<strong>Send summary to traveler</strong><button class="pillbtn${H('copy-preview')}" type="button" data-act="copy-preview">Copy summary ${ic('copy', 14)}</button></div>
+      ${stamp('6:09 PM')}` });
+    if (has('e4')) cards.push({ from: at('e4'), html: `
+      <div class="aa-title">${ic('building', 22)}Property availability</div>
+      <dl class="aa-kv"><dt>Property:</dt><dd>Garden State Inn</dd><dt>Availability:</dt><dd class="open">Open</dd><dt>Hours:</dt><dd>10 AM–2 PM PST</dd><dt>Contact number:</dt><dd>+1 123-1234-1234 <button class="iconbtn${H('call')}" type="button" data-act="call" aria-label="Call property">${ic('phone', 16)}</button></dd></dl>
+      <div class="action">${ic('alert', 20)}<strong>If property is unavailable</strong><button class="pillbtn" type="button">Send an email ${ic('mail', 14)}</button></div>
+      ${stamp('6:10 PM')}` });
+    if (has('f4')) {
+      const busy = S.step === at('cancelling');
+      const done = has('canceled');
+      cards.push({ from: at('f4'), html: `
+        <div class="aa-title">${ic('listx', 22)}Cancel booking</div>
+        <dl class="aa-kv"><dt>Property:</dt><dd>Garden State Inn</dd><dt>Room 1:</dt><dd>Deluxe King (2 nights)</dd></dl>
+        <div class="action">${ic('alert', 20)}<strong>Cancel with fee</strong>
+          <button class="pillbtn${H('one-click')}" type="button" data-act="one-click" ${busy || done ? 'disabled' : ''}>${busy ? '<span class="spin"></span>Cancelling…' : done ? 'Cancelled' : 'One-click cancel'}</button></div>
+        ${stamp('6:13 PM')}` });
+    }
+    if (has('canceled')) cards.push({ from: at('canceled'), html: `
+      <div class="aa-title">${ic('listx', 22)}Booking canceled</div>
+      <dl class="aa-kv"><dt>Property:</dt><dd>Garden State Inn</dd><dt>Room 1:</dt><dd>Deluxe King (2 nights)</dd><dt>Itinerary:</dt><dd>234567</dd><dt>Penalty charged:</dt><dd>$244.74</dd><dt>Confirmation email:</dt><dd>heatmes3395@gmail.com</dd></dl>
+      <div class="action">${ic('alert', 20)}<strong>Send summary to traveler</strong><p>${MSG.canceled}</p><button class="pillbtn${H('copy-canceled')}" type="button" data-act="copy-canceled">Copy summary ${ic('copy', 14)}</button></div>
+      ${stamp('6:13 PM')}` });
+    if (has('f6')) {
+      const submitting = S.step === at('submitting');
+      const closed = has('closed');
+      cards.push({ from: at('f6'), html: `
+        <div class="aa-title">${ic('case', 22)}Close case</div>
+        <p style="margin:0 0 12px;font-size:13px;line-height:18px">When you’re ready to close this case, Agent Assist will fill out and submit the case disposition on your behalf.</p>
+        <button class="pillbtn${H('close-case')}" type="button" data-act="close-case" ${submitting || closed ? 'disabled' : ''}>${submitting ? '<span class="spin"></span>Submitting disposition...' : 'Close this case'}</button>
+        ${stamp('6:14 PM')}` });
+    }
+    if (has('closed')) {
+      cards.push({ from: at('closed'), html: `
+        <div class="aa-title">${ic('case', 22)}Case close</div>
+        <div class="closed-msg">${checkDot(22)}Case disposition submitted,<br>this case is now closed</div>
+        ${stamp('6:15 PM')}` });
+      cards.push({ from: at('closed'), html: S.rating ? `
+        <div class="survey"><h3>Thank you for your feedback!</h3>${checkDot(28, '#0250d9')}</div>` : `
+        <div class="survey"><h3>How helpful was Agent Assist?</h3>
+          <button type="button" data-act="rate:not">${ic('sad', 18)}Not helpful</button>
+          <button type="button" data-act="rate:some">${ic('meh', 18)}Somewhat helpful</button>
+          <button class="${H('rate').trim()}" type="button" data-act="rate:helpful">${ic('happy', 18)}Helpful</button>
+        </div><div class="stamp" style="padding-left:12px">Apr 4, 2026 at 6:15 PM</div>` });
+    }
+    const showClose = has('case') && !has('closed');
+    return `
+      <aside class="aa">
+        <div class="aa-h">Agent Assist ${showClose ? `<button class="btn sm" type="button" data-act="close-case" ${has('f6') ? '' : 'disabled'}>Close case</button>` : ''}</div>
+        <div class="aa-feed" id="feed">${cards.map(c => `<div class="aa-card${isNew(c.from)}">${c.html}</div>`).join('')}</div>
+      </aside>`;
+  }
+
+  function overlays() {
+    if (S.modal === 'confirm') return `
+      <div class="scrim"><div class="confirm" role="dialog" aria-modal="true" aria-labelledby="cf-t">
+        <h3 id="cf-t">Proceed with cancellation?</h3><p>This will cancel the booking on behalf of the traveler.</p>
+        <div class="acts"><button class="btn link" type="button" data-act="close-modal">Cancel</button><button class="btn brand${H('proceed')}" type="button" data-act="proceed" style="height:46px;border-radius:23px">Yes, proceed</button></div>
+      </div></div>`;
+    if (S.modal === 'detail') return `
+      <div class="scrim" data-act="close-modal"><div class="detail" role="dialog" aria-modal="true" aria-labelledby="dt-t" data-act="copy-detail">
+        <button class="xbtn" type="button" data-act="close-modal" aria-label="Close">${ic('x', 16)}</button>
+        <h3 id="dt-t">Penalties and restrictions</h3>
+        <div class="row"><b>Policy in effect</b><span>Non-refundable</span></div>
+        <div class="row"><b>Cancellation penalty</b><span>$244.74 (100% of total booking)</span></div>
+        <div class="row"><b>Refundable by</b><span>11:59 PM local hotel time. Saturday, April 3, 2026</span></div>
+        <div class="row"><b>Full cancellation policy</b><span>Cancellations or changes made after 11:59 PM local hotel time, Saturday, April 3, 2026 or no-shows are subject to a hotel fee equal to 100% of the total amount paid for the reservation.<br><br>If you fail to check in for this reservation, or if you cancel or change this reservation after check-in, you may incur penalty charges at the discretion of the hotel of up to 100% of the booking value.</span></div>
+        <hr>
+        <div class="money big"><span>Original booking price</span><b>$244.74</b></div>
+        <div class="money"><b>1 night</b><b>$198.97</b></div>
+        <div class="money"><span>6/27/26</span><span>$198.97</span></div>
+        <div class="money"><b>Taxes &amp; fees</b><span>$45.77</span></div>
+        <div class="money"><b>Due at property</b><span>$7.00</span></div>
+        <hr>
+        <div class="money big"><span>Cancel and refund summary</span></div>
+        <div class="money"><b>Amount paid - Expedia Collect (excl due at property)</b><span>$244.74</span></div>
+        <div class="money"><b>Penalties</b><span>$244.74</span></div>
+        <hr>
+        <div class="money big"><span>Total refund</span><b>$0.00</b></div>
+        <div class="money"><b>Refund to Visa 1111</b><span>$0.00</span></div>
+        <hr>
+        <div class="money big"><span>Confirmation email</span></div>
+        <div class="money"><span>heatmes3395@gmail.com</span></div>
+      </div></div>`;
+    return '';
+  }
+
+  // ---------- clock ----------
+  let secs = 84;
+  function clock() { const m = Math.floor(secs / 60), s = secs % 60; return `00:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`; }
+  setInterval(() => { if (!has('f6')) secs++; const c = document.getElementById('clock'); if (c) c.textContent = clock(); }, 1000);
+
+  // ---------- render ----------
+  function render() {
+    const prevChat = document.getElementById('chat');
+    const keptScroll = prevChat ? prevChat.scrollTop : null;
+    stage.innerHTML = `
+      ${chrome()}
+      <main class="ws">${S.tab === 'case' ? caseView() : contactView()}${agentAssist()}</main>
+      <footer class="utility"><span>${checkDot(16)}Omni-Channel (Online)</span><span>${ic('phone')}Phone</span><span>${ic('clock')}History</span><span>${ic('anchor')}Background Utility</span></footer>
+      ${overlays()}
+      ${S.toast ? `<div class="toast">${checkDot(16, '#2e844a')}${esc(S.toast)}</div>` : ''}`;
+    const chat = document.getElementById('chat');
+    if (chat) { chat.style.scrollBehavior = 'auto'; chat.scrollTop = keptScroll !== null && S.lastStep === S.step ? keptScroll : chat.scrollHeight; chat.style.scrollBehavior = ''; }
+    const feed = document.getElementById('feed');
+    if (feed) {
+      feed.style.scrollBehavior = 'auto';
+      const hint = feed.querySelector('.hint');
+      if (hint) feed.scrollTop = Math.max(0, hint.closest('.aa-card').offsetTop - 8);
+      else { const last = feed.lastElementChild; feed.scrollTop = last ? last.offsetTop - 8 : 0; }
+      feed.style.scrollBehavior = '';
+    }
+    const hintEl = stage.querySelector('.col .hint');
+    if (hintEl) { const col = hintEl.closest('.col'); let y = 0; for (let n = hintEl; n && n !== col; n = n.offsetParent) y += n.offsetTop; if (y > col.scrollTop + col.clientHeight - 60) col.scrollTop = y - col.clientHeight + 120; }
+    // controller
+    const st = STEPS[S.step];
+    document.getElementById('ctl-step').textContent = st.label;
+    document.getElementById('ctl-prog').textContent = `${S.step + 1} / ${STEPS.length}`;
+    document.getElementById('ctl-back').disabled = S.step === 0;
+    document.getElementById('ctl-next').disabled = st.key === 'done';
+    S.lastStep = S.step;
+  }
+
+  // ---------- events ----------
+  stage.addEventListener('click', e => {
+    const el = e.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    const a = el.dataset.act;
+    if (a === 'copy-detail' && e.target.closest('[data-act]') === el && el.classList.contains('detail')) return;
+    e.preventDefault();
+    act(a);
+  });
+  stage.addEventListener('submit', e => { e.preventDefault(); act('send'); });
+  stage.addEventListener('input', e => {
+    if (e.target.id === 'draft') { S.draft = e.target.value; e.target.classList.toggle('drafted', !!S.draft); }
+    if (e.target.id === 'q') S.query = e.target.value;
+  });
+  document.getElementById('ctl-back').onclick = back;
+  document.getElementById('ctl-next').onclick = next;
+  document.getElementById('ctl-restart').onclick = () => { S.sent = {}; secs = 84; enter(0, { fromBack: true }); };
+  document.getElementById('ctl-hints').onchange = e => document.body.classList.toggle('nohints', !e.target.checked);
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'ArrowRight') next();
+    if (e.key === 'ArrowLeft') back();
+    if (e.key === 'Escape' && S.modal === 'detail') act('close-modal');
+  });
+
+  // ---------- fit ----------
+  const frame = document.getElementById('frame');
+  function fit() {
+    const availW = document.body.clientWidth - parseFloat(getComputedStyle(document.body).paddingLeft) - parseFloat(getComputedStyle(document.body).paddingRight);
+    const availH = window.innerHeight - 16 - 88;
+    const s = Math.min(availW / 1440, Math.max(availH, 300) / 900, 1.25);
+    stage.style.transform = `scale(${s})`;
+    frame.style.width = 1440 * s + 'px';
+    frame.style.height = 900 * s + 'px';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+  enter(0, { fromBack: true });
+})();
+</script>
